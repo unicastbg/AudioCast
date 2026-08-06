@@ -1,0 +1,14 @@
+# Normalize text files, but never mangle binaries with line-ending conversion.
+* text=auto
+
+# Images and other binaries: treat as binary, byte-for-byte.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.jar binary
+*.aar binary
+*.keystore binary
+*.jks binary
