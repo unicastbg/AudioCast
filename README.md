@@ -7,6 +7,14 @@ through a car's Android head unit without fighting Bluetooth.
 One app runs as either **Sender** (the phone) or **Receiver** (the box); you pick
 the role on first launch and can change it in Settings.
 
+## Screenshots
+
+<p>
+  <img src="screenshots/app.png" width="250" alt="AudioCast">
+  <img src="screenshots/app_receiver.png" width="250" alt="Receiver">
+  <img src="screenshots/app_sender.png" width="250" alt="Sender">
+</p>
+
 ## Modes
 
 - **Live capture** — streams whatever the phone is playing (any app: a music
