@@ -1,0 +1,8 @@
+<resources>
+    <!-- Base window theme. Actual UI colors come from the Compose Material3 theme. -->
+    <style name="Theme.AudioCast" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">#0E0E0E</item>
+        <item name="android:navigationBarColor">#0E0E0E</item>
+        <item name="android:windowBackground">#0E0E0E</item>
+    </style>
+</resources>

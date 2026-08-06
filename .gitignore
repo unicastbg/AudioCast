@@ -1,0 +1,26 @@
+# Gradle / build output
+.gradle/
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Machine-specific — must NOT be shared (contains your local SDK path)
+local.properties
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+*.ipr
+*.iws
+.DS_Store
+
+# Kotlin
+.kotlin/
+
+# Signing keys — never commit these
+*.jks
+*.keystore
+
+# Logs
+*.log
