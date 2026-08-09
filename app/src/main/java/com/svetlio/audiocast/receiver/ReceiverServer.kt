@@ -5,14 +5,18 @@ import com.svetlio.audiocast.network.FrameType
 import com.svetlio.audiocast.network.FileMeta
 import com.svetlio.audiocast.network.PcmMeta
 import com.svetlio.audiocast.network.Protocol
+import com.svetlio.audiocast.security.BruteForceGuard
+import com.svetlio.audiocast.security.TcpHandshake
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.DataInputStream
+import java.io.DataOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
 
@@ -29,6 +33,8 @@ import java.net.Socket
 class ReceiverServer(
     private val cacheDir: File,
     private val port: Int = Protocol.DEFAULT_PORT,
+    private val pinProvider: () -> String = { "" },
+    private val guard: BruteForceGuard = BruteForceGuard(),
 ) {
     interface Callbacks {
         // File transfer (Phase 1)
@@ -76,7 +82,24 @@ class ReceiverServer(
     }
 
     private fun handleClient(client: Socket, cb: Callbacks) {
+        val ip = (client.remoteSocketAddress as? InetSocketAddress)?.address?.hostAddress ?: "?"
+        if (guard.isLockedOut(ip)) return // too many bad attempts recently
+
         val input = DataInputStream(BufferedInputStream(client.getInputStream()))
+        val out = DataOutputStream(BufferedOutputStream(client.getOutputStream()))
+
+        val authed = try {
+            TcpHandshake.serverAuthenticate(input, out, pinProvider())
+        } catch (e: Exception) {
+            false
+        }
+        if (!authed) {
+            guard.recordFailure(ip)
+            runCatching { Thread.sleep(FAIL_DELAY_MS) } // slow down guessing
+            return
+        }
+        guard.recordSuccess(ip)
+
         val first = Frame.readHeader(input) ?: return
         when (first.type) {
             FrameType.FILE_META -> handleFile(input, first.length, cb)
@@ -160,4 +183,8 @@ class ReceiverServer(
 
     private fun sanitize(name: String): String =
         name.replace(Regex("[^A-Za-z0-9._-]"), "_").take(80)
+
+    companion object {
+        private const val FAIL_DELAY_MS = 300L
+    }
 }

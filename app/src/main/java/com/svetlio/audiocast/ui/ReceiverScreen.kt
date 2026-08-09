@@ -1,5 +1,6 @@
 package com.svetlio.audiocast.ui
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,10 +22,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.svetlio.audiocast.receiver.AudioLevels
 import com.svetlio.audiocast.receiver.PlaybackState
 import com.svetlio.audiocast.receiver.ReceiverViewModel
 
@@ -36,6 +40,7 @@ fun ReceiverScreen(
 ) {
     val advertisedName by viewModel.advertisedName.collectAsStateWithLifecycle()
     val playback by viewModel.playback.collectAsStateWithLifecycle()
+    val visualizerEnabled by AudioLevels.enabled.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -76,7 +81,39 @@ fun ReceiverScreen(
                 )
                 Spacer(Modifier.height(32.dp))
                 PlaybackStatus(playback)
+
+                // Meter shows only when the toggle is on AND audio is playing.
+                if (visualizerEnabled && playback is PlaybackState.Playing) {
+                    Spacer(Modifier.height(24.dp))
+                    Visualizer()
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun Visualizer() {
+    val levels by AudioLevels.levels.collectAsStateWithLifecycle()
+    val barColor = MaterialTheme.colorScheme.primary
+
+    Canvas(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(120.dp)
+    ) {
+        val n = levels.size
+        if (n == 0) return@Canvas
+        val slot = size.width / n
+        val barWidth = slot * 0.6f
+        val minH = size.height * 0.02f
+        for (i in 0 until n) {
+            val h = (levels[i].coerceIn(0f, 1f) * size.height).coerceAtLeast(minH)
+            drawRect(
+                color = barColor,
+                topLeft = Offset(i * slot + (slot - barWidth) / 2f, size.height - h),
+                size = Size(barWidth, h),
+            )
         }
     }
 }

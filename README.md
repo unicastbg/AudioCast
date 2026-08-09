@@ -30,6 +30,20 @@ the role on first launch and can change it in Settings.
 - Receiver runs as a foreground service, so it keeps playing when it isn't the
   focused app and works alongside a TV box's autostart.
 - Capture auto-pauses during phone calls and resumes afterward.
+- Optional per-packet **UDP** transport for live capture (Settings) — trades
+  reliability for lower latency; file sending always uses TCP.
+- Optional **PIN security** with a shared PIN and per-IP brute-force lockout, so
+  only your paired sender can push to the receiver. Empty PIN = open.
+- Optional simple **level-meter visualizer** on the receiver that follows live
+  audio.
+
+## Security
+
+By default the receiver accepts a stream from anyone on the same network, and
+traffic is unencrypted — fine on a private phone hotspot with two devices you
+control. If the receiver ever sits on a shared network, set a **PIN** (Settings →
+Security) on both devices: the PIN is never sent in the clear (challenge-response
+on TCP, per-packet token on UDP) and repeated wrong guesses lock the source out.
 
 ## Requirements
 

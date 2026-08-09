@@ -16,10 +16,12 @@ import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import com.svetlio.audiocast.MainActivity
 import com.svetlio.audiocast.R
+import com.svetlio.audiocast.core.AppSettings
 import com.svetlio.audiocast.discovery.NsdController
 import com.svetlio.audiocast.network.FileMeta
 import com.svetlio.audiocast.network.PcmMeta
 import com.svetlio.audiocast.network.Protocol
+import com.svetlio.audiocast.security.BruteForceGuard
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -42,6 +44,8 @@ class ReceiverService : Service() {
 
     private lateinit var nsd: NsdController
     private lateinit var server: ReceiverServer
+    private lateinit var udpReceiver: UdpPcmReceiver
+    private val guard = BruteForceGuard()
 
     private var player: ExoPlayer? = null
     private var pcmPlayer: PcmPlayer? = null
@@ -53,7 +57,9 @@ class ReceiverService : Service() {
     override fun onCreate() {
         super.onCreate()
         nsd = NsdController(this)
-        server = ReceiverServer(cacheDir = cacheDir, port = Protocol.DEFAULT_PORT)
+        val pinProvider = { AppSettings(this).securityPin }
+        server = ReceiverServer(cacheDir, Protocol.DEFAULT_PORT, pinProvider, guard)
+        udpReceiver = UdpPcmReceiver(Protocol.DEFAULT_PORT, pinProvider, guard)
         player = ExoPlayer.Builder(this).build()
     }
 
@@ -67,8 +73,10 @@ class ReceiverService : Service() {
             startForegroundInternal()
             ReceiverState.setPlayback(PlaybackState.Idle)
             ReceiverState.setRunning(true)
+            AudioLevels.setEnabled(AppSettings(this).visualizerEnabled)
             startAdvertising()
             startServer()
+            startUdpReceiver()
         }
         return START_STICKY
     }
@@ -106,12 +114,31 @@ class ReceiverService : Service() {
                 }
 
                 override fun onPcmChunk(data: ByteArray, length: Int) {
-                    pcmPlayer?.write(data, length)
+                    pcmPlayer?.write(data, 0, length)
                 }
 
                 override fun onStreamEnded() {
                     pcmPlayer?.stop()
                     pcmPlayer = null
+                    ReceiverState.setPlayback(PlaybackState.Idle)
+                }
+
+                override fun onError(message: String) {
+                    ReceiverState.setPlayback(PlaybackState.Failed(message))
+                }
+            })
+        }
+    }
+
+    private fun startUdpReceiver() {
+        mainScope.launch(Dispatchers.IO) {
+            udpReceiver.run(object : UdpPcmReceiver.Callbacks {
+                override fun onStreamStart() {
+                    mainScope.launch { player?.pause() }
+                    ReceiverState.setPlayback(PlaybackState.Playing("Live audio"))
+                }
+
+                override fun onStreamEnd() {
                     ReceiverState.setPlayback(PlaybackState.Idle)
                 }
 
@@ -135,6 +162,7 @@ class ReceiverService : Service() {
 
     private fun stopEverything() {
         server.stop()
+        udpReceiver.stop()
         nsd.unregister()
         pcmPlayer?.stop()
         pcmPlayer = null
@@ -192,6 +220,7 @@ class ReceiverService : Service() {
         super.onDestroy()
         // Safety net if the process is torn down without an explicit stop.
         runCatching { server.stop() }
+        runCatching { udpReceiver.stop() }
         runCatching { nsd.unregister() }
         runCatching { pcmPlayer?.stop() }
         runCatching { player?.release() }

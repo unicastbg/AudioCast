@@ -14,6 +14,12 @@ object FrameType {
     // Phase 2 — universal capture (raw PCM stream).
     const val PCM_META = 16
     const val PCM_DATA = 17
+
+    // PIN authentication handshake (TCP).
+    const val AUTH_CHALLENGE = 32
+    const val AUTH_RESPONSE = 33
+    const val AUTH_OK = 34
+    const val AUTH_FAIL = 35
 }
 
 data class FrameHeader(val type: Int, val length: Int)

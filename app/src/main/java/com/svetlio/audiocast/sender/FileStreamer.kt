@@ -8,10 +8,13 @@ import android.webkit.MimeTypeMap
 import com.svetlio.audiocast.network.Frame
 import com.svetlio.audiocast.network.FrameType
 import com.svetlio.audiocast.network.FileMeta
+import com.svetlio.audiocast.security.TcpHandshake
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
+import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.io.IOException
 import java.net.InetSocketAddress
@@ -36,10 +39,14 @@ class FileStreamer(context: Context) {
     ) = withContext(Dispatchers.IO) {
         val resolver = appContext.contentResolver
         val meta = queryMeta(resolver, uri)
+        val pin = com.svetlio.audiocast.core.AppSettings(appContext).securityPin
 
         Socket().use { socket ->
             socket.connect(InetSocketAddress(host, port), CONNECT_TIMEOUT_MS)
+            val netIn = DataInputStream(BufferedInputStream(socket.getInputStream()))
             val out = DataOutputStream(BufferedOutputStream(socket.getOutputStream()))
+
+            TcpHandshake.clientAuthenticate(netIn, out, pin) // throws on wrong PIN
 
             Frame.writeFrame(out, FrameType.FILE_META, meta.toBytes())
 

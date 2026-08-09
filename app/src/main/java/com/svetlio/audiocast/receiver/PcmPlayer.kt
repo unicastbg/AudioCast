@@ -73,9 +73,24 @@ class PcmPlayer(meta: PcmMeta) {
     }
 
     /** Producer: enqueue captured audio; drop oldest if we're running ahead. */
-    fun write(data: ByteArray, length: Int) {
+    fun write(data: ByteArray, offset: Int, length: Int) {
         val len = length - (length % bytesPerFrame) // defensive frame-align
         if (len <= 0) return
+
+        // Feed the visualizer a cheap peak (only when it's on).
+        if (AudioLevels.isEnabled()) {
+            var peak = 0
+            var i = offset
+            val end = offset + len
+            while (i + 1 < end) {
+                val s = (data[i].toInt() and 0xFF) or (data[i + 1].toInt() shl 8)
+                val a = if (s < 0) -s else s
+                if (a > peak) peak = a
+                i += 8 // sample every few frames; plenty for a meter
+            }
+            AudioLevels.push(peak / 32768f)
+        }
+
         synchronized(lock) {
             val free = ring.size - count
             if (len > free) {
@@ -85,9 +100,9 @@ class PcmPlayer(meta: PcmMeta) {
                 count -= drop
             }
             val firstPart = minOf(len, ring.size - tail)
-            System.arraycopy(data, 0, ring, tail, firstPart)
+            System.arraycopy(data, offset, ring, tail, firstPart)
             if (len > firstPart) {
-                System.arraycopy(data, firstPart, ring, 0, len - firstPart)
+                System.arraycopy(data, offset + firstPart, ring, 0, len - firstPart)
             }
             tail = (tail + len) % ring.size
             count += len
@@ -145,6 +160,7 @@ class PcmPlayer(meta: PcmMeta) {
         runCatching { track.stop() }
         runCatching { track.flush() }
         runCatching { track.release() }
+        AudioLevels.reset()
     }
 
     private fun msToBytes(ms: Int): Int {

@@ -12,9 +12,9 @@ android {
         applicationId = "com.svetlio.audiocast"
         minSdk = 29
         targetSdk = 34
-        // versionCode = major*10000 + minor*100 + patch  (1.0.2 -> 10002)
-        versionCode = 10002
-        versionName = "1.0.2"
+        // versionCode = major*10000 + minor*100 + patch  (1.0.5 -> 10005)
+        versionCode = 10005
+        versionName = "1.0.5"
     }
 
     buildTypes {

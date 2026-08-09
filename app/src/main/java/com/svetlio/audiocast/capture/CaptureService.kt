@@ -19,13 +19,8 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.svetlio.audiocast.MainActivity
 import com.svetlio.audiocast.R
-import com.svetlio.audiocast.network.Frame
-import com.svetlio.audiocast.network.FrameType
-import com.svetlio.audiocast.network.PcmMeta
-import java.io.BufferedOutputStream
-import java.io.DataOutputStream
-import java.net.InetSocketAddress
-import java.net.Socket
+import com.svetlio.audiocast.core.AppSettings
+import com.svetlio.audiocast.core.Transport
 
 /**
  * Foreground service that captures system audio via MediaProjection +
@@ -124,19 +119,15 @@ class CaptureService : Service() {
 
     private fun streamLoop(mp: MediaProjection, host: String, port: Int) {
         val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        var socket: Socket? = null
+        val settings = AppSettings(this)
+        val pin = settings.securityPin
+        val sink: PcmSink = when (settings.liveTransport) {
+            Transport.UDP -> UdpPcmSink(host, port, pin)
+            Transport.TCP -> TcpPcmSink(host, port, SAMPLE_RATE, CONNECT_TIMEOUT_MS, pin)
+        }
         var paused = false
         try {
-            socket = Socket().apply {
-                tcpNoDelay = true
-                connect(InetSocketAddress(host, port), CONNECT_TIMEOUT_MS)
-            }
-            val out = DataOutputStream(BufferedOutputStream(socket.getOutputStream()))
-
-            Frame.writeFrame(
-                out, FrameType.PCM_META,
-                PcmMeta(SAMPLE_RATE, 2, AudioFormat.ENCODING_PCM_16BIT).toBytes(),
-            )
+            sink.open()
 
             val record = buildAudioRecord(mp) ?: run { stopEverything(); return }
             audioRecord = record
@@ -168,14 +159,12 @@ class CaptureService : Service() {
                 val rec = audioRecord ?: break
                 val n = rec.read(buf, 0, buf.size)
                 if (n <= 0) continue
-                Frame.writeHeader(out, FrameType.PCM_DATA, n)
-                out.write(buf, 0, n)
+                sink.send(buf, n)
             }
-            out.flush()
         } catch (e: Exception) {
             Log.e(TAG, "stream loop ended: ${e.message}")
         } finally {
-            runCatching { socket?.close() }
+            runCatching { sink.close() }
             stopEverything()
         }
     }
